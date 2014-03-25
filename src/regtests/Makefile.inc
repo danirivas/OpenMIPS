@@ -21,6 +21,6 @@ CRT0O=${MODEL_ROOT_BASE}/src/toolchain_support/crt0.o
 $(CRT0O):
 	make -C ${MODEL_ROOT_BASE}/src/toolchain_support/
 
-CFLAGS=-G0
-LDFLAGS=$(CRT0O)
+CFLAGS=-G0 -EL
+LDFLAGS=$(CRT0O) -T ${MODEL_ROOT_BASE}/src/toolchain_support/elf32.x
 

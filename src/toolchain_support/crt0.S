@@ -1,26 +1,32 @@
 
 # Setup
 
-.section .text
+.section .start,"ax",@progbits
 .extern main
  
 .global _start
 _start:
-	# Clear BSS section
-	la $t0, __bss_start
-	la $t1, _end
-	_bss_clear_loop:
-	sw $zero, 0($t0)
-	bne $t0,$t1,_bss_clear_loop
-	addiu $t0, $t0, 4
-
+    .set noreorder
 	# Setup stackpointer
 	lui $sp, 0x1000
 
+    # Call initialization
+    # This clears bss, calls C++ constructors...
+    jal _init
+    nop
+
 	# Call program
 	jal main
+    nop
+
+    # Call destructors and other stuff
+    jal _fini
+    nop
 
 	# Exit! Loop forever
 	_inf_loop:
 	j _inf_loop
+    nop
+    nop
+    nop
 

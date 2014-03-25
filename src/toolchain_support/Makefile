@@ -11,7 +11,7 @@ PREFIX=mips-elf-
 AS=$(EPATH)/$(PREFIX)as
 
 all:
-	$(AS) -o crt0.o crt0.S
+	$(AS) -EL -o crt0.o crt0.S
 
 clean:
 	rm -f crt0.o
