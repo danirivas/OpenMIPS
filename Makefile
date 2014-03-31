@@ -4,6 +4,9 @@ MODEL_ROOT_BASE=${MODEL_ROOT}
 ifeq ($(strip $(MODEL_ROOT_BASE)),)
 $(error MODEL_ROOT variable not set)
 endif
+ifeq ($(strip ${ALTERA_BIN}),)
+$(error ALTERA_BIN variable not set)
+endif
 
 .PHONY:	toolchain_clean toolchain status regression_binaries
 
@@ -39,5 +42,11 @@ regression_binaries:
 regression_binaries_clean:
 	make -C $(MODEL_ROOT_BASE)/src/regtests clean
 	make -C $(MODEL_ROOT_BASE)/src/toolchain_support clean
+
+## RTL model compile ##
+
+simple_mips:
+	make -C $(MODEL_ROOT_BASE)/rtl/simple_mips/ RTL_BUILD=$(MODEL_ROOT_BASE)/build/rtl/simple_mips
+
 
 
