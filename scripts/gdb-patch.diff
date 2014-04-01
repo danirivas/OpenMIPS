@@ -1,0 +1,684 @@
+diff -u -r sim/common/sim-trace.c sim/common/sim-trace.c
+--- sim/common/sim-trace.c	2014-04-01 15:21:09.106826000 +0200
++++ sim/common/sim-trace.c	2014-04-01 17:26:53.860830000 +0200
+@@ -61,6 +61,7 @@
+ 
+ enum {
+   OPTION_TRACE_INSN	= OPTION_START,
++  OPTION_TRACE_REG,
+   OPTION_TRACE_DECODE,
+   OPTION_TRACE_EXTRACT,
+   OPTION_TRACE_LINENUM,
+@@ -86,6 +87,9 @@
+   { {"trace", optional_argument, NULL, 't'},
+       't', "on|off", "Trace useful things",
+       trace_option_handler, NULL },
++  { {"trace-reg", optional_argument, NULL, OPTION_TRACE_REG},
++      '\0', "on|off", "Perform register tracing",
++      trace_option_handler, NULL },
+   { {"trace-insn", optional_argument, NULL, OPTION_TRACE_INSN},
+       '\0', "on|off", "Perform instruction tracing",
+       trace_option_handler, NULL },
+@@ -253,6 +257,13 @@
+ 	sim_io_eprintf (sd, "Instruction tracing not compiled in, `--trace-insn' ignored\n");
+       break;
+ 
++    case OPTION_TRACE_REG :
++      if (WITH_TRACE_REG_P)
++	return set_trace_option (sd, "-reg", TRACE_REG_IDX, arg);
++      else
++	sim_io_eprintf (sd, "Instruction tracing not compiled in, `--trace-reg' ignored\n");
++      break;
++
+     case OPTION_TRACE_DECODE :
+       if (WITH_TRACE_DECODE_P)
+ 	return set_trace_option (sd, "-decode", TRACE_DECODE_IDX, arg);
+@@ -613,6 +624,7 @@
+     {
+     case TRACE_ALU_IDX:     return "alu:     ";
+     case TRACE_INSN_IDX:    return "insn:    ";
++    case TRACE_REG_IDX:     return "reg:     ";
+     case TRACE_DECODE_IDX:  return "decode:  ";
+     case TRACE_EXTRACT_IDX: return "extract: ";
+     case TRACE_MEMORY_IDX:  return "memory:  ";
+@@ -1038,6 +1050,19 @@
+ }
+ 
+ void
++trace_reg (SIM_DESC sd,
++	       sim_cpu *cpu,
++	       int trace_idx,
++		   unsigned_word regn,
++		   unsigned_word regv)
++{
++  TRACE_DATA *data = CPU_TRACE_DATA (cpu);
++  TRACE_IDX (data) = trace_idx;
++  save_data (sd, data, trace_fmt_word, sizeof (unsigned_word), &regn);
++  save_data (sd, data, trace_fmt_word, sizeof (unsigned_word), &regv);
++}
++
++void
+ trace_result_word2 (SIM_DESC sd,
+ 		    sim_cpu *cpu,
+ 		    int trace_idx,
+diff -u -r sim/common/sim-trace.h sim/common/sim-trace.h
+--- sim/common/sim-trace.h	2014-04-01 15:21:09.015917000 +0200
++++ sim/common/sim-trace.h	2014-04-01 17:28:45.533291000 +0200
+@@ -28,6 +28,9 @@
+   /* Trace insn execution.  */
+   TRACE_INSN_IDX = 1,
+ 
++  /* Trace register write */
++  TRACE_REG_IDX,
++
+   /* Trace insn decoding.
+      ??? This is more of a simulator debugging operation and might best be
+      moved to --debug-decode.  */
+@@ -102,6 +105,7 @@
+ #define TRACE_memory   (1 << TRACE_MEMORY_IDX)
+ #define TRACE_model    (1 << TRACE_MODEL_IDX)
+ #define TRACE_alu      (1 << TRACE_ALU_IDX)
++#define TRACE_reg      (1 << TRACE_REG_IDX)
+ #define TRACE_core     (1 << TRACE_CORE_IDX)
+ #define TRACE_events   (1 << TRACE_EVENTS_IDX)
+ #define TRACE_fpu      (1 << TRACE_FPU_IDX)
+@@ -118,6 +122,7 @@
+ #define WITH_TRACE_MEMORY_P	(WITH_TRACE & TRACE_memory)
+ #define WITH_TRACE_MODEL_P	(WITH_TRACE & TRACE_model)
+ #define WITH_TRACE_ALU_P	(WITH_TRACE & TRACE_alu)
++#define WITH_TRACE_REG_P	(WITH_TRACE & TRACE_reg)
+ #define WITH_TRACE_CORE_P	(WITH_TRACE & TRACE_core)
+ #define WITH_TRACE_EVENTS_P	(WITH_TRACE & TRACE_events)
+ #define WITH_TRACE_FPU_P	(WITH_TRACE & TRACE_fpu)
+@@ -210,6 +215,7 @@
+ /* Non-zero if --trace-<xxxx> was specified for CPU.  */
+ #define TRACE_ANY_P(cpu)	((WITH_TRACE) && (CPU_TRACE_DATA (cpu)->trace_any_p))
+ #define TRACE_INSN_P(cpu)	TRACE_P (cpu, TRACE_INSN_IDX)
++#define TRACE_REG_P(cpu)	TRACE_P (cpu, TRACE_REG_IDX)
+ #define TRACE_DECODE_P(cpu)	TRACE_P (cpu, TRACE_DECODE_IDX)
+ #define TRACE_EXTRACT_P(cpu)	TRACE_P (cpu, TRACE_EXTRACT_IDX)
+ #define TRACE_LINENUM_P(cpu)	TRACE_P (cpu, TRACE_LINENUM_IDX)
+@@ -443,6 +449,12 @@
+ 
+ #define TRACE_ALU_RESULT(R0) TRACE_ALU_RESULT1(R0)
+ 
++#define TRACE_REG_RESULT(REGN, REGV) \
++do { \
++  if (TRACE_REG_P (CPU)) \
++    trace_reg (SD, CPU, TRACE_REG_IDX, (REGN), (REGV)); \
++} while (0)
++
+ #define TRACE_ALU_RESULT0() \
+ do { \
+   if (TRACE_ALU_P (CPU)) \
+diff -u -r sim/mips/mips.igen sim/mips/mips.igen
+--- sim/mips/mips.igen	2014-04-01 15:21:07.936534000 +0200
++++ sim/mips/mips.igen	2014-04-01 17:42:11.451158000 +0200
+@@ -528,6 +528,7 @@
+     ALU32_END (GPR[RD]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -556,6 +557,7 @@
+     ALU32_END (GPR[RT]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RT]);
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -567,6 +569,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], EXTEND16 (immediate));
+   GPR[rt] = EXTEND32 (GPR[rs] + EXTEND16 (immediate));
+   TRACE_ALU_RESULT (GPR[rt]);
++  TRACE_REG_RESULT (rt, GPR[rt]);
+ }
+ 
+ 001001,5.RS,5.RT,16.IMMEDIATE:NORMAL:32::ADDIU
+@@ -596,6 +599,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = EXTEND32 (GPR[rs] + GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100001:SPECIAL:32::ADDU
+@@ -623,6 +627,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = GPR[rs] & GPR[rt];
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100100:SPECIAL:32::AND
+@@ -663,6 +668,7 @@
+   TRACE_ALU_INPUT2 (GPR[RS], IMMEDIATE);
+   GPR[RT] = GPR[RS] & IMMEDIATE;
+   TRACE_ALU_RESULT (GPR[RT]);
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -761,6 +767,7 @@
+   RA = (CIA + 8);
+   if ((signed_word) GPR[RS] >= 0)
+     {
++      TRACE_REG_RESULT (31, (RA));
+       DELAY_SLOT (NIA + offset);
+     }
+ }
+@@ -785,6 +792,7 @@
+   if (RS == 31)
+     Unpredictable ();
+   RA = (CIA + 8);
++  TRACE_REG_RESULT (31, (RA));
+   /* NOTE: The branch occurs AFTER the next instruction has been
+      executed */
+   if ((signed_word) GPR[RS] >= 0)
+@@ -917,6 +925,7 @@
+   if ((signed_word) GPR[RS] <= 0)
+     {
+       DELAY_SLOT (NIA + offset);
++      TRACE_REG_RESULT (31, (NIA+offset));
+     }
+   else
+     NULLIFY_NEXT_INSTRUCTION ();
+@@ -967,6 +976,7 @@
+   if (RS == 31)
+     Unpredictable ();
+   RA = (CIA + 8);
++  TRACE_REG_RESULT (31, (RA));
+   /* NOTE: The branch occurs AFTER the next instruction has been
+      executed */
+   if ((signed_word) GPR[RS] < 0)
+@@ -995,6 +1005,7 @@
+   if (RS == 31)
+     Unpredictable ();
+   RA = (CIA + 8);
++  TRACE_REG_RESULT (31, (RA));
+   if ((signed_word) GPR[RS] < 0)
+     {
+       DELAY_SLOT (NIA + offset);
+@@ -1147,6 +1158,7 @@
+     }
+   GPR[RD] = EXTEND32 (i);
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1174,6 +1186,7 @@
+     }
+   GPR[RD] = EXTEND32 (i);
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1196,6 +1209,7 @@
+     ALU64_END (GPR[RD]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1218,6 +1232,7 @@
+     ALU64_END (GPR[RT]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RT]);
++  TRACE_REG_RESULT (RD, GPR[RT]);
+ }
+ 
+ 
+@@ -1250,6 +1265,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = GPR[rs] + GPR[rt];
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,101101:SPECIAL:64::DADDU
+@@ -1289,6 +1305,7 @@
+     }
+   GPR[RD] = EXTEND32 (i);
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1314,6 +1331,7 @@
+     }
+   GPR[RD] = EXTEND32 (i);
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1625,6 +1643,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RD] = do_dror (SD_, GPR[RT], SHIFT);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 000000,00001,5.RT,5.RD,5.SHIFT,111110::64::DROR32
+@@ -1635,6 +1654,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RD] = do_dror (SD_, GPR[RT], SHIFT + 32);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00001,010110::64::DRORV
+@@ -1645,6 +1665,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RD] = do_dror (SD_, GPR[RT], GPR[RS]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1653,6 +1674,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], shift);
+   GPR[rd] = GPR[rt] << shift;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,00000,5.RT,5.RD,5.SHIFT,111000:SPECIAL:64::DSLL
+@@ -1685,6 +1707,7 @@
+   TRACE_ALU_INPUT2 (GPR[RT], s);
+   GPR[RD] = GPR[RT] << s;
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ :function:::void:do_dsllv:int rs, int rt, int rd
+@@ -1693,6 +1716,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = GPR[rt] << s;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,010100:SPECIAL:64::DSLLV
+@@ -1747,6 +1771,7 @@
+   TRACE_ALU_INPUT2 (GPR[RT], s);
+   GPR[RD] = ((signed64) GPR[RT]) >> s;
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1756,6 +1781,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = ((signed64) GPR[rt]) >> s;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,010111:SPECIAL:64::DSRAV
+@@ -1777,6 +1803,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], shift);
+   GPR[rd] = (unsigned64) GPR[rt] >> shift;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 
+@@ -1810,6 +1837,7 @@
+   TRACE_ALU_INPUT2 (GPR[RT], s);
+   GPR[RD] = (unsigned64) GPR[RT] >> s;
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1819,6 +1847,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = (unsigned64) GPR[rt] >> s;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 
+@@ -1856,6 +1885,7 @@
+     ALU64_END (GPR[RD]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -1864,6 +1894,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = GPR[rs] - GPR[rt];
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,101111:SPECIAL:64::DSUBU
+@@ -1922,6 +1953,7 @@
+      current instruction */
+   address_word region = (NIA & MASK (63, 28));
+   GPR[31] = CIA + 8;
++  TRACE_REG_RESULT (31, GPR[31]);
+   DELAY_SLOT (region | (INSTR_INDEX << 2));
+ }
+ 
+@@ -1943,6 +1975,7 @@
+ {
+   address_word temp = GPR[RS];
+   GPR[RD] = CIA + 8;
++  TRACE_REG_RESULT (RD, GPR[RD]);
+   DELAY_SLOT (temp);
+ }
+ 
+@@ -1954,6 +1987,7 @@
+ {
+   address_word temp = GPR[RS];
+   GPR[RD] = CIA + 8;
++  TRACE_REG_RESULT (RD, GPR[RD]);
+   DELAY_SLOT (temp);
+ }
+ 
+@@ -2109,6 +2143,7 @@
+ *r3900:
+ {
+   GPR[RT] = EXTEND8 (do_load (SD_, AccessLength_BYTE, GPR[BASE], EXTEND16 (OFFSET)));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2128,6 +2163,7 @@
+ *r3900:
+ {
+   GPR[RT] = do_load (SD_, AccessLength_BYTE, GPR[BASE], EXTEND16 (OFFSET));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2143,6 +2179,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RT] = EXTEND64 (do_load (SD_, AccessLength_DOUBLEWORD, GPR[BASE], EXTEND16 (OFFSET)));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2178,6 +2215,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RT] = do_load_left (SD_, AccessLength_DOUBLEWORD, GPR[BASE], EXTEND16 (OFFSET), GPR[RT]);
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2193,6 +2231,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RT] = do_load_right (SD_, AccessLength_DOUBLEWORD, GPR[BASE], EXTEND16 (OFFSET), GPR[RT]);
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2212,6 +2251,7 @@
+ *r3900:
+ {
+   GPR[RT] = EXTEND16 (do_load (SD_, AccessLength_HALFWORD, GPR[BASE], EXTEND16 (OFFSET)));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2231,6 +2271,7 @@
+ *r3900:
+ {
+   GPR[RT] = do_load (SD_, AccessLength_HALFWORD, GPR[BASE], EXTEND16 (OFFSET));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2272,6 +2313,7 @@
+ 	    LoadMemory(&memval,&memval1,uncached,AccessLength_WORD,paddr,vaddr,isDATA,isREAL);
+ 	    byte = ((vaddr & mask) ^ (bigend << shift));
+ 	    GPR[RT] = EXTEND32 (memval >> (8 * byte));
++        TRACE_REG_RESULT (RT, GPR[RT]);
+ 	    LLBIT = 1;
+ 	  }
+       }
+@@ -2308,6 +2350,7 @@
+ 	    unsigned64 memval1 = 0;
+ 	    LoadMemory(&memval,&memval1,uncached,AccessLength_DOUBLEWORD,paddr,vaddr,isDATA,isREAL);
+ 	    GPR[RT] = memval;
++        TRACE_REG_RESULT (RT, GPR[RT]);
+ 	    LLBIT = 1;
+ 	  }
+       }
+@@ -2333,6 +2376,7 @@
+   TRACE_ALU_INPUT1 (IMMEDIATE);
+   GPR[RT] = EXTEND32 (IMMEDIATE << 16);
+   TRACE_ALU_RESULT (GPR[RT]);
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2352,6 +2396,7 @@
+ *r3900:
+ {
+   GPR[RT] = EXTEND32 (do_load (SD_, AccessLength_WORD, GPR[BASE], EXTEND16 (OFFSET)));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2390,6 +2435,7 @@
+ *r3900:
+ {
+   GPR[RT] = EXTEND32 (do_load_left (SD_, AccessLength_WORD, GPR[BASE], EXTEND16 (OFFSET), GPR[RT]));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2409,6 +2455,7 @@
+ *r3900:
+ {
+   GPR[RT] = EXTEND32 (do_load_right (SD_, AccessLength_WORD, GPR[BASE], EXTEND16 (OFFSET), GPR[RT]));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2424,6 +2471,7 @@
+ {
+   check_u64 (SD_, instruction_0);
+   GPR[RT] = do_load (SD_, AccessLength_WORD, GPR[BASE], EXTEND16 (OFFSET));
++  TRACE_REG_RESULT (RT, GPR[RT]);
+ }
+ 
+ 
+@@ -2519,6 +2567,7 @@
+   TRACE_ALU_INPUT1 (HI);
+   GPR[rd] = HI;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,0000000000,5.RD,00000,010000:SPECIAL:32::MFHI
+@@ -2558,6 +2607,7 @@
+   TRACE_ALU_INPUT1 (LO);
+   GPR[rd] = LO;
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,0000000000,5.RD,00000,010010:SPECIAL:32::MFLO
+@@ -2605,6 +2655,7 @@
+     {
+       GPR[RD] = GPR[RS];
+       TRACE_ALU_RESULT (GPR[RD]);
++      TRACE_REG_RESULT (RD, GPR[RD]);
+     }
+ }
+ 
+@@ -2624,6 +2675,7 @@
+     {
+       GPR[RD] = GPR[RS];
+       TRACE_ALU_RESULT (GPR[RD]);
++      TRACE_REG_RESULT (RD, GPR[RD]);
+     }
+ }
+ 
+@@ -2928,6 +2980,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = ~ (GPR[rs] | GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100111:SPECIAL:32::NOR
+@@ -2954,6 +3007,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = (GPR[rs] | GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100101:SPECIAL:32::OR
+@@ -2981,6 +3035,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], immediate);
+   GPR[rt] = (GPR[rs] | immediate);
+   TRACE_ALU_RESULT (GPR[rt]);
++  TRACE_REG_RESULT (rt, GPR[rt]);
+ }
+ 
+ 001101,5.RS,5.RT,16.IMMEDIATE:NORMAL:32::ORI
+@@ -3046,6 +3101,7 @@
+ *vr5500:
+ {
+   GPR[RD] = do_ror (SD_, GPR[RT], SHIFT);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00001,000110::32::RORV
+@@ -3057,6 +3113,7 @@
+ *vr5500:
+ {
+   GPR[RD] = do_ror (SD_, GPR[RT], GPR[RS]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -3344,6 +3401,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], shift);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,00000,5.RT,5.RD,5.SHIFT,000000:SPECIAL:32::SLLa
+@@ -3387,6 +3445,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,000100:SPECIAL:32::SLLV
+@@ -3413,6 +3472,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = ((signed_word) GPR[rs] < (signed_word) GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,101010:SPECIAL:32::SLT
+@@ -3439,6 +3499,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], EXTEND16 (immediate));
+   GPR[rt] = ((signed_word) GPR[rs] < (signed_word) EXTEND16 (immediate));
+   TRACE_ALU_RESULT (GPR[rt]);
++  TRACE_REG_RESULT (rt, GPR[rt]);
+ }
+ 
+ 001010,5.RS,5.RT,16.IMMEDIATE:NORMAL:32::SLTI
+@@ -3465,6 +3526,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], EXTEND16 (immediate));
+   GPR[rt] = ((unsigned_word) GPR[rs] < (unsigned_word) EXTEND16 (immediate));
+   TRACE_ALU_RESULT (GPR[rt]);
++  TRACE_REG_RESULT (rt, GPR[rt]);
+ }
+ 
+ 001011,5.RS,5.RT,16.IMMEDIATE:NORMAL:32::SLTIU
+@@ -3492,6 +3554,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = ((unsigned_word) GPR[rs] < (unsigned_word) GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,101011:SPECIAL:32::SLTU
+@@ -3521,6 +3584,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], shift);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,00000,5.RT,5.RD,5.SHIFT,000011:SPECIAL:32::SRA
+@@ -3552,6 +3616,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,000111:SPECIAL:32::SRAV
+@@ -3582,6 +3647,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], shift);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,00000,5.RT,5.RD,5.SHIFT,000010:SPECIAL:32::SRL
+@@ -3612,6 +3678,7 @@
+   TRACE_ALU_INPUT2 (GPR[rt], s);
+   GPR[rd] = EXTEND32 (temp);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,000110:SPECIAL:32::SRLV
+@@ -3657,6 +3724,7 @@
+     ALU32_END (GPR[RD]);   /* This checks for overflow.  */
+   }
+   TRACE_ALU_RESULT (GPR[RD]);
++  TRACE_REG_RESULT (RD, GPR[RD]);
+ }
+ 
+ 
+@@ -3667,6 +3735,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = EXTEND32 (GPR[rs] - GPR[rt]);
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100011:SPECIAL:32::SUBU
+@@ -4023,6 +4092,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], GPR[rt]);
+   GPR[rd] = GPR[rs] ^ GPR[rt];
+   TRACE_ALU_RESULT (GPR[rd]);
++  TRACE_REG_RESULT (rd, GPR[rd]);
+ }
+ 
+ 000000,5.RS,5.RT,5.RD,00000,100110:SPECIAL:32::XOR
+@@ -4049,6 +4119,7 @@
+   TRACE_ALU_INPUT2 (GPR[rs], immediate);
+   GPR[rt] = GPR[rs] ^ immediate;
+   TRACE_ALU_RESULT (GPR[rt]);
++  TRACE_REG_RESULT (rt, GPR[rt]);
+ }
+ 
+ 001110,5.RS,5.RT,16.IMMEDIATE:NORMAL:32::XORI

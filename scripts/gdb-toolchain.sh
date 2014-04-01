@@ -23,6 +23,9 @@ function down_extract {
    	mkdir -p $BASE_PATH/src/gdb
 
 	tar -xf $BASE_PATH/dl/gdb-7.7.tar.bz2 -C $BASE_PATH/src/gdb/
+
+    # Now patch with custom MIPS simulator
+    (cd $BASE_PATH/src/gdb/gdb-7.7/; patch -p0 < $BASE_PATH/scripts/gdb-patch.diff)
 }
 
 if [ "$1" == "check" ]; then
