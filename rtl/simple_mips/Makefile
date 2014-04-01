@@ -13,4 +13,6 @@ all:
 	# Compile
 	$(VC) $(VFLAGS) mips.v
 
-
+regression:
+	# Simulate 
+	
