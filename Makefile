@@ -14,6 +14,7 @@ status:
 	@echo "Model status:"
 	@$(MODEL_ROOT_BASE)/scripts/binutils-toolchain.sh check && (echo " - Binutils OK") || (echo " - Binutils missing")
 	@$(MODEL_ROOT_BASE)/scripts/gcc-toolchain.sh check      && (echo " - GCC OK")      || (echo " - GCC missing")
+	@$(MODEL_ROOT_BASE)/scripts/gdb-toolchain.sh check      && (echo " - GDB OK")      || (echo " - GDB missing")
 
 ## Compile toolchain ##
 
@@ -23,13 +24,14 @@ toolchain_clean:
 	./scripts/binutils-toolchain.sh clean
 	./scripts/gcc-toolchain.sh clean
 	./scripts/newlib-toolchain.sh clean
-
+	./scripts/gdb-toolchain.sh clean
 
 toolchain:
 	./scripts/binutils-toolchain.sh build
 	./scripts/gcc-toolchain.sh build-pre
 	./scripts/newlib-toolchain.sh build
 	./scripts/gcc-toolchain.sh build
+	./scripts/gdb-toolchain.sh build
 
 ## Regression tests ##
 
