@@ -27,7 +27,7 @@ function down_file {
 function down_extract {
 
     down_file "gcc-4.8.0.tar.bz2"  "$SOURCE_URL" "$SOURCE_CHECKSUM"
-    if [ "$1"== "build-pre" ]; then
+    if [ "$1" == "build-pre" ]; then
         down_file "gmp-5.1.0.tar.bz2"  "$GMP_URL"    "$GMP_CHECKSUM"
         down_file "mpc-1.0.1.tar.gz"   "$MPC_URL"    "$MPC_CHECKSUM"
         down_file "mpfr-3.1.1.tar.bz2" "$MPFR_URL"   "$MPFR_CHECKSUM"

@@ -1,6 +1,17 @@
 
 `include "constants.vh"
 
+
+module cpu_top_level();
+    reg clk, reset;
+    initial clk = 0;
+    initial reset = 1;
+    always #(0.5ns) clk = ~clk;
+    always #(10ns) reset = 0;
+
+    simple_mips cpu(clk, reset);
+endmodule
+
 module simple_mips(clk, reset);
 
 input clk, reset;
@@ -55,13 +66,62 @@ always @ (*) begin
 			rb <= 5'b0;
 			rc <= rd;
 		end
-		`FUNC_SLL, `FUNC_SRL, `FUNC_SRA: begin
+		`FUNC_SLLV, `FUNC_SRLV, `FUNC_SRAV: begin
 			ra <= rt;
+			rb <= rs;
+			rc <= rd;
+        end
+		`FUNC_JR: begin
+			ra <= rs;
 			rb <= 5'b0;
+			rc <= 5'b0;
+        end
+		`FUNC_JALR: begin
+			ra <= rs;
+			rb <= 5'b0;
+			rc <= 5'h1f;
+        end
+        `FUNC_ADD, `FUNC_ADDU, `FUNC_SUB, `FUNC_SUBU, `FUNC_AND, FUNC_OR, `FUNC_XOR, `FUNC_NOR, `FUNC_SLT, `FUNC_SLTU: begin
+			ra <= rs;
+			rb <= rt;
 			rc <= rd;
 		end
+        default: begin
+			ra <= 5'b0;
+			rb <= 5'b0;
+			rc <= 5'b0;
+		end
 		endcase;
+    `OP_ADDI, `OP_ADDIU, `OP_SLTI, `OP_SLTIU, `OP_ANDI, `OP_ORI, `OP_XORI, `OP_LW, `OP_LB, `OP_LBU, `OP_LH, `OP_LHU: begin
+		ra <= rs;
+		rb <= 5'b0;
+		rc <= rt;
 	end
+    `OP_LUI: begin
+		ra <= 5'b0;
+		rb <= 5'b0;
+		rc <= rt;
+	end
+    `OP_JUMP: begin
+		ra <= 5'b0;
+		rb <= 5'b0;
+		rc <= 5'b0;
+	end
+    `OP_JAL: begin
+		ra <= 5'b0;
+		rb <= 5'b0;
+		rc <= 5'h1f;
+	end
+    `OP_SW, `OP_SB: begin
+		ra <= rs;
+		rb <= rt;
+		rc <= 5'b0;
+    end
+    default: begin
+        ra <= 5'b0;
+        rb <= 5'b0;
+        rc <= 5'b0;
+    end
 	endcase;
 end;
 
@@ -100,6 +160,20 @@ always @ (posedge clk) begin
 		if (rc != 5'b0)
 			reg_bank[rc] = wb_bus;
 	end
+end
+
+
+// Output for checker
+reg [63:0] cycle_count;
+always @ (posedge clk) begin
+    if (reset) begin
+        cycle_count <= 64'b0;
+        $display("Reset going on...");
+    end
+    else begin
+        $display(cycle_count, " ", rc);
+        cycle_count <= cycle_count + 1;
+    end
 end
 
 endmodule
