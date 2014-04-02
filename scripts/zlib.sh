@@ -43,7 +43,7 @@ elif [ "$1" == "build" ]; then
 	(cd $BASE_PATH/build/zlib/zlib-1.2.8; ./configure --prefix=$ZLIB_PREFIX  )
 	
 	echo "Compiling zlib..."
-	make -C $BASE_PATH/build/zlib/zlib-1.2.8 all CC=mips-elf-gcc CFLAGS="$CFLAGS -mabicalls "
+	make -C $BASE_PATH/build/zlib/zlib-1.2.8 all CC=mips-elf-gcc CFLAGS="$CFLAGS -EL "
 	
 	echo "Install ZLIB"
 	make -C $BASE_PATH/build/zlib/zlib-1.2.8 install

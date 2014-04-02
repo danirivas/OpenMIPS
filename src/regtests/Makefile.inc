@@ -19,12 +19,16 @@ OBJCOPY=$(EPATH)/$(PREFIX)objcopy
 # CRT0 stuff
 CRT0O=${MODEL_ROOT_BASE}/src/toolchain_support/crt0.o
 $(CRT0O):
-	make -C ${MODEL_ROOT_BASE}/src/toolchain_support/
+	make -C ${MODEL_ROOT_BASE}/src/toolchain_support/ all
 
-CFLAGS=-G0 -EL
-LDFLAGS=$(CRT0O) -T ${MODEL_ROOT_BASE}/src/toolchain_support/elf32.x
+CFLAGS=-G0 -EL $(CINCLUDE)
+LDFLAGS=$(CRT0O) -T ${MODEL_ROOT_BASE}/src/toolchain_support/elf32.x $(CLIB) -lc -lnosys
 
-all:	$(CRT0O)
+
+SRCS_PATH=${MODEL_ROOT_BASE}/src/
+BUILDS_PATH=${MODEL_ROOT_BASE}/build/
+
+all:	$(CRT0O) 
 	$(CC) -o $(TARGET).exe $(TARGET).c $(CFLAGS) $(LDFLAGS)
 	$(OBJCOPY) -O binary -j ".start" -j ".init" -j ".fini" -j ".text" -j ".ctors" -j ".dtors" -j ".data" -j ".bss"  $(TARGET).exe $(TARGET).bin
 	${MODEL_ROOT_BASE}/src/toolchain_support/memgen.sh $(TARGET).bin $(TARGET).img 

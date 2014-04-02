@@ -14,8 +14,8 @@ char inbuffer [4*1024];
 char outbuffer[8*1024];
 
 int main() {
-	int size_outbuffer;
-	int size_inbuffer = sizeof(inbuffer);
+	long size_outbuffer;
+	long size_inbuffer = sizeof(inbuffer);
 
 	int i;
 	for (i = 0; i < size_inbuffer; i++)
