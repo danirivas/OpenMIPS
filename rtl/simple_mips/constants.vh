@@ -86,5 +86,6 @@
 `define UOP_SRL     5'b01101
 `define UOP_SLA     5'b01110
 `define UOP_SRA     5'b01111
+`define UOP_LUI     5'b10000
 `define UOP_NOP     5'b11111
 

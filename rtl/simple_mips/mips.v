@@ -2,7 +2,7 @@
 `include "constants.vh"
 
 
-module cpu_top_level();
+module simple_mips_toplevel();
     reg clk, reset;
     initial clk = 0;
     initial reset = 1;
@@ -15,6 +15,7 @@ endmodule
 module simple_mips(clk, reset);
 
 input clk, reset;
+reg [31:0] memory[256*1024-1:0];
 
 // Instruction fetch
 reg [31:0] current_pc;
@@ -39,6 +40,7 @@ always @ (posedge clk) begin
 end
 
 wire [31:0] encoded_inst;
+assign encoded_inst = memory[current_pc[20:2]];
 
 // Instruction decoding
 
@@ -180,7 +182,7 @@ always @ (*) begin
         uop <= `UOP_XOR;
     end
     `OP_LUI: begin
-        uop <= `UOP_SLL;
+        uop <= `UOP_LUI;
 	end
     default: begin
         uop <= `UOP_NOP;
@@ -190,13 +192,13 @@ always @ (*) begin
 end;
 
  // Jumps & delay slot
-wire is_jump;
+wire is_jump, is_taken, is_cond; 
 wire is_jump_and_link;
 
 assign is_jump =   (opcode == `OP_RTYPE && (func == `FUNC_JR || func == `FUNC_JALR)) ||
 					opcode == `OP_JUMP || opcode == `OP_JAL || opcode == `OP_BEQ || opcode == `OP_BNE ||
 					opcode == `OP_BRANCH || opcode == `OP_BLEZ || opcode == `OP_BGTZ;
-assign next_is_delay_slot = is_jump;
+assign next_is_delay_slot = is_jump & (is_taken | ~is_cond);
 assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcode == `OP_JAL;  // Some cases missing
 
 
@@ -204,7 +206,7 @@ assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcod
 reg [31:0] reg_bank [31:1];
 wire [31:0] opA, opB;
 assign opA = (ra != 5'b0) ? reg_bank[ra] : 32'b0;
-assign opB = (rb != 5'b0) ? reg_bank[rb] : (use_imm)? {16'b0, imm[15:0]} : 32'b0;
+assign opB = (rb != 5'b0) ? reg_bank[rb] : (use_imm)? {{16{imm[15]}}, imm[15:0]} : 32'b0;
 
 // Execution
 wire z, lessz, eq;
@@ -250,16 +252,50 @@ always @(*) begin
     `UOP_SRA: begin
         res <= opA >>> opB;
     end
+    `UOP_LUI: begin
+        res <= opB << 16;
+    end
     endcase;
 end;
 assign z       = (res == 32'b0);
 assign lessz   = res[31];
 
-// Memory load or store
+//Condition Evaluation
+assign is_taken = (opcode == `OP_BEQ & z) | (opcode == `OP_BNE & ~z) |
+                  (opcode == `OP_BLEZ & (lessz | z)) | (opcode == `OP_BGTZ &
+                  (~lessz & ~z));
+assign is_cond  = opcode == `OP_BEQ | opcode == `OP_BNE | opcode == `OP_BLEZ |
+                  opcode == `OP_BGTZ;
 
+// Memory load or store
+wire is_ld;
+assign is_ld = (opcode[5:3] == 3'b100); 
+reg [31:0] ld;
+always @ (*) begin
+    case(opcode)
+    `OP_LB: begin
+        ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][7:0]};
+    end
+    `OP_LBU: begin
+        ld <= {24'b0, memory[res[20:2]][7:0]};
+    end
+    `OP_LH: begin
+        ld <= {{16{memory[res[20:2]][15]}}, memory[res[20:2]][15:0]};
+    end
+    `OP_LHU: begin
+        ld <= {16'b0, memory[res[20:2]][15:0]};
+    end
+    `OP_LWL: begin
+        ld <= {opA[15:0], memory[res[20:2]][31:16];
+     end
+     `OP_LWR: begin
+        ld <= {opA[15:0], memory[res[20:2]][15:0];
+     end
+end;
 
 // Writeback
 wire [31:0] wb_bus;
+assign wb_bus = is_ld? ld : res;
 always @ (posedge clk) begin
 	if (reset) begin
 		for (int i = 1; i < 32; i++) begin
@@ -281,7 +317,7 @@ always @ (posedge clk) begin
         $display("Reset going on...");
     end
     else begin
-        $display(cycle_count, " ", rc);
+        $display(cycle_count, " ", rc, " ", wb_bus);
         cycle_count <= cycle_count + 1;
     end
 end
