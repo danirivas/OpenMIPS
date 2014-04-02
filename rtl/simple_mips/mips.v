@@ -47,16 +47,19 @@ wire [4:0]  rs, rt, rd;
 wire [4:0]  sa;
 wire [5:0]  func;
 wire [15:0] imm;
+wire use_imm;
 
-assign opcode = encoded_inst [31:26];
-assign sa     = encoded_inst [10: 6];
-assign func   = encoded_inst [5 : 0];
-assign rs     = encoded_inst [25:21];
-assign rt     = encoded_inst [20:16];
-assign rd     = encoded_inst [15:11];
-assign imm    = encoded_inst [15: 0];
+assign opcode   = encoded_inst [31:26];
+assign sa       = encoded_inst [10: 6];
+assign func     = encoded_inst [5 : 0];
+assign rs       = encoded_inst [25:21];
+assign rt       = encoded_inst [20:16];
+assign rd       = encoded_inst [15:11];
+assign imm      = encoded_inst [15: 0];
+assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100);
 
 reg [4:0] ra, rb, rc;
+reg [3:0] uop;
 always @ (*) begin
 	case (opcode)
 	`OP_RTYPE: begin
@@ -81,41 +84,42 @@ always @ (*) begin
 			rb <= 5'b0;
 			rc <= 5'h1f;
         end
-        `FUNC_ADD, `FUNC_ADDU, `FUNC_SUB, `FUNC_SUBU, `FUNC_AND, FUNC_OR, `FUNC_XOR, `FUNC_NOR, `FUNC_SLT, `FUNC_SLTU: begin
+        `FUNC_ADD, `FUNC_ADDU, `FUNC_SUB, `FUNC_SUBU, `FUNC_AND, `FUNC_OR, `FUNC_XOR, `FUNC_NOR, `FUNC_SLT, `FUNC_SLTU: begin
 			ra <= rs;
 			rb <= rt;
 			rc <= rd;
-		end
+        end
         default: begin
 			ra <= 5'b0;
 			rb <= 5'b0;
 			rc <= 5'b0;
 		end
 		endcase;
+    end
     `OP_ADDI, `OP_ADDIU, `OP_SLTI, `OP_SLTIU, `OP_ANDI, `OP_ORI, `OP_XORI, `OP_LW, `OP_LB, `OP_LBU, `OP_LH, `OP_LHU: begin
 		ra <= rs;
 		rb <= 5'b0;
 		rc <= rt;
 	end
     `OP_LUI: begin
-		ra <= 5'b0;
+	    ra <= 5'b0;
 		rb <= 5'b0;
 		rc <= rt;
 	end
     `OP_JUMP: begin
-		ra <= 5'b0;
+	    ra <= 5'b0;
 		rb <= 5'b0;
 		rc <= 5'b0;
 	end
     `OP_JAL: begin
-		ra <= 5'b0;
-		rb <= 5'b0;
-		rc <= 5'h1f;
+	    ra <= 5'b0;
+	    rb <= 5'b0;
+	    rc <= 5'h1f;
 	end
     `OP_SW, `OP_SB: begin
-		ra <= rs;
-		rb <= rt;
-		rc <= 5'b0;
+	    ra <= rs;
+	    rb <= rt;
+	    rc <= 5'b0;
     end
     default: begin
         ra <= 5'b0;
@@ -123,6 +127,66 @@ always @ (*) begin
         rc <= 5'b0;
     end
 	endcase;
+
+    case(opcode)
+    `OP_RTYPE: begin
+        case (func)
+		`FUNC_SLL, `FUNC_SLLV: begin
+            uop <= `UOP_SLL;
+        end
+        `FUNC_SRL, `FUNC_SRLV: begin
+            uop <= `UOP_SRL;
+        end
+        `FUNC_SRA, `FUNC_SRAV: begin
+            uop <= `UOP_SRA;
+        end
+        `FUNC_ADD, `FUNC_ADDU: begin
+            uop <= `UOP_ADD;
+        end
+        `FUNC_SUB, `FUNC_SUBU, `FUNC_SLT, `FUNC_SLTU: begin
+            uop <= `UOP_SUB;   
+        end
+        `FUNC_AND: begin
+            uop <= `UOP_AND;
+        end
+        `FUNC_OR: begin
+            uop <= `UOP_OR;
+        end
+        `FUNC_XOR: begin
+            uop <= `UOP_XOR;
+        end
+        `FUNC_NOR: begin
+            uop <= `UOP_NOR;
+        end
+        default: begin
+            uop <= `UOP_NOP;
+		end
+		endcase;
+    end
+    `OP_ADDI, `OP_ADDIU, `OP_LW, `OP_LB, `OP_LBU, `OP_LH, `OP_LHU, `OP_LWL,
+    `OP_LWR, `OP_SW, `OP_SB: begin
+        uop <= `UOP_ADD;
+    end
+    `OP_SLTI, `OP_SLTIU: begin 
+        uop <= `UOP_SUB;
+    end
+    `OP_ANDI: begin
+        uop <= `UOP_AND;
+    end
+    `OP_ORI: begin
+        uop <= `UOP_OR;
+    end
+    `OP_XORI: begin
+        uop <= `UOP_XOR;
+    end
+    `OP_LUI: begin
+        uop <= `UOP_SLL;
+	end
+    default: begin
+        uop <= `UOP_NOP;
+    end
+	endcase;
+        
 end;
 
  // Jumps & delay slot
@@ -140,10 +204,56 @@ assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcod
 reg [31:0] reg_bank [31:1];
 wire [31:0] opA, opB;
 assign opA = (ra != 5'b0) ? reg_bank[ra] : 32'b0;
-assign opB = (rb != 5'b0) ? reg_bank[rb] : 32'b0;
+assign opB = (rb != 5'b0) ? reg_bank[rb] : (use_imm)? {16'b0, imm[15:0]} : 32'b0;
 
 // Execution
+wire z, lessz, eq;
+reg of;
+reg [31:0] res;
 
+//ALU
+always @(*) begin
+    case(uop)
+    `UOP_ADD: begin
+        {of, res} <= opA + opB;
+    end
+    `UOP_SUB: begin
+        res <= opA - opB;
+    end
+    `UOP_MUL: begin
+        res <= opA * opB; //FIXME
+    end
+    `UOP_DIV: begin
+        res <= opA / opB; //FIXME
+    end
+    `UOP_OR: begin
+        res <= opA | opB;
+    end
+    `UOP_AND: begin
+        res <= opA & opB;
+    end
+    `UOP_XOR: begin
+        res <= opA ^ opB;
+    end
+    `UOP_NOR: begin
+        res <= ~(opA | opB);
+    end
+    `UOP_SLL: begin
+        res <= opA << opB;
+    end
+    `UOP_SRL: begin
+        res <= opA >> opB;
+    end
+    `UOP_SLA: begin
+        res <= opA <<< opB;
+    end
+    `UOP_SRA: begin
+        res <= opA >>> opB;
+    end
+    endcase;
+end;
+assign z       = (res == 32'b0);
+assign lessz   = res[31];
 
 // Memory load or store
 

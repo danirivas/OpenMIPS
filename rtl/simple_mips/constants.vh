@@ -25,6 +25,8 @@
 `define OP_LW      6'b100011
 `define OP_LBU     6'b100100
 `define OP_LHU     6'b100101
+`define OP_LWL     6'b100010
+`define OP_LWR     6'b100110
 
 `define OP_SB      6'b101000
 `define OP_SH      6'b101001
@@ -68,4 +70,21 @@
 `define FUNC_SLT     6'b101010
 `define FUNC_SLTU    6'b101011
 
+`define UOP_ADD     5'b00000
+`define UOP_ADDU    5'b00001
+`define UOP_SUB     5'b00010
+`define UOP_SUBU    5'b00011
+`define UOP_MUL     5'b00100
+`define UOP_MULU    5'b00101
+`define UOP_DIV     5'b00110
+`define UOP_DIVU    5'b00111
+`define UOP_OR      5'b01000 
+`define UOP_AND     5'b01001
+`define UOP_XOR     5'b01010 
+`define UOP_NOR     5'b01011
+`define UOP_SLL     5'b01100
+`define UOP_SRL     5'b01101
+`define UOP_SLA     5'b01110
+`define UOP_SRA     5'b01111
+`define UOP_NOP     5'b11111
 
