@@ -41,7 +41,7 @@ diff -u -r sim/common/sim-trace.c sim/common/sim-trace.c
      case TRACE_DECODE_IDX:  return "decode:  ";
      case TRACE_EXTRACT_IDX: return "extract: ";
      case TRACE_MEMORY_IDX:  return "memory:  ";
-@@ -1038,6 +1050,19 @@
+@@ -1038,6 +1050,21 @@
  }
  
  void
@@ -53,8 +53,10 @@ diff -u -r sim/common/sim-trace.c sim/common/sim-trace.c
 +{
 +  TRACE_DATA *data = CPU_TRACE_DATA (cpu);
 +  TRACE_IDX (data) = trace_idx;
++  int last_input = TRACE_INPUT_IDX (data);
 +  save_data (sd, data, trace_fmt_word, sizeof (unsigned_word), &regn);
 +  save_data (sd, data, trace_fmt_word, sizeof (unsigned_word), &regv);
++  trace_results (sd, cpu, trace_idx, last_input);
 +}
 +
 +void
