@@ -24,3 +24,13 @@ $(CRT0O):
 CFLAGS=-G0 -EL
 LDFLAGS=$(CRT0O) -T ${MODEL_ROOT_BASE}/src/toolchain_support/elf32.x
 
+all:	$(CRT0O)
+	$(CC) -o $(TARGET).exe $(TARGET).c $(CFLAGS) $(LDFLAGS)
+	$(OBJCOPY) -O binary -j ".start" -j ".init" -j ".fini" -j ".text" -j ".ctors" -j ".dtors" -j ".data" -j ".bss"  $(TARGET).exe $(TARGET).bin
+	${MODEL_ROOT_BASE}/src/toolchain_support/memgen.sh $(TARGET).bin $(TARGET).img 
+
+clean:
+	rm -f $(TARGET).exe
+	rm -f $(TARGET).bin
+	rm -f $(TARGET).img
+
