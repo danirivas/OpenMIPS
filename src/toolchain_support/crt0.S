@@ -9,6 +9,8 @@ _start:
     .set noreorder
 	# Setup stackpointer
 	lui $sp, 0x1000
+    # Setup GP
+    la $gp, _gp
 
     # Call initialization
     # This clears bss, calls C++ constructors...
@@ -24,6 +26,9 @@ _start:
     nop
 
 	# Exit! Loop forever
+    break
+    nop
+    nop
 	_inf_loop:
 	j _inf_loop
     nop

@@ -45,6 +45,9 @@ regression_binaries_clean:
 	make -C $(MODEL_ROOT_BASE)/src/regtests clean
 	make -C $(MODEL_ROOT_BASE)/src/toolchain_support clean
 
+regression:	regression_binaries
+	(export TOP_LEVEL_CPU=simple_mips ; make -C $(MODEL_ROOT_BASE)/src/regtests regression)
+
 ## RTL model compile ##
 
 simple_mips:

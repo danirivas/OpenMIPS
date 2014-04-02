@@ -33,6 +33,9 @@ all:	$(CRT0O)
 	$(OBJCOPY) -O binary -j ".start" -j ".init" -j ".fini" -j ".text" -j ".ctors" -j ".dtors" -j ".data" -j ".bss"  $(TARGET).exe $(TARGET).bin
 	${MODEL_ROOT_BASE}/src/toolchain_support/memgen.sh $(TARGET).bin $(TARGET).img 
 
+regression:
+	$(MODEL_ROOT_BASE)/src/checker/checker.pl $(TARGET).exe $(TARGET).bin $(MODEL_ROOT_BASE)/build/rtl/$(TOP_LEVEL_CPU)/ $(TOP_LEVEL_CPU)_toplevel $(MODEL_ROOT_BASE)/regression/$(TOP_LEVEL_CPU)
+
 clean:
 	rm -f $(TARGET).exe
 	rm -f $(TARGET).bin

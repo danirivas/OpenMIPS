@@ -12,8 +12,7 @@ AS=$(EPATH)/$(PREFIX)as
 CC=$(EPATH)/$(PREFIX)gcc
 
 all:
-	$(AS) -EL -o crt0.o crt0.S
-	$(CC) -EL -o sbrk.o sbrk.c
+	$(AS) -mips1 -EL -o crt0.o crt0.S
 
 clean:
 	rm -f crt0.o
