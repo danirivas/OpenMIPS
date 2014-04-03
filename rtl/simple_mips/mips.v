@@ -27,7 +27,7 @@ wire next_is_delay_slot;
 
 wire [31:0] next_pc_seq;
 wire [31:0] next_pc;
-wire [31:0] target_jump;
+reg [31:0] target_jump;
 assign next_pc_seq = current_pc + 32'h4;
 assign next_pc = is_delay_slot ? target_jump : next_pc_seq;
 
@@ -43,7 +43,7 @@ always @ (posedge clk) begin
 end
 
 wire [31:0] encoded_inst;
-assign encoded_inst = memory[current_pc[20:2]];
+assign encoded_inst = memory[current_pc[19:2]];
 
 // Instruction decoding
 
@@ -52,6 +52,7 @@ wire [4:0]  rs, rt, rd;
 wire [4:0]  sa;
 wire [5:0]  func;
 wire [15:0] imm;
+wire [25:0] jmp_off; 
 wire use_imm;
 
 assign opcode   = encoded_inst [31:26];
@@ -60,7 +61,8 @@ assign func     = encoded_inst [5 : 0];
 assign rs       = encoded_inst [25:21];
 assign rt       = encoded_inst [20:16];
 assign rd       = encoded_inst [15:11];
-assign imm      = encoded_inst [15: 0];
+assign imm      = encoded_inst [15: 0]; //FIXME: extend imm to 32b
+assign jmp_off  = encoded_inst [25:0];
 assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100 ||
 opcode[5:3] == 3'b101);
 
@@ -126,6 +128,11 @@ always @ (*) begin
 	    ra <= rs;
 	    rb <= rt;
 	    rc <= 5'b0;
+    end
+    `OP_BEQ, `OP_BNE, `OP_BLEZ, `OP_BGTZ: begin
+        ra <= rs;
+        rb <= rt;
+        rc <= 5'b0;
     end
     default: begin
         ra <= 5'b0;
@@ -198,12 +205,14 @@ end;
  // Jumps & delay slot
 wire is_jump, is_taken, is_cond; 
 wire is_jump_and_link;
+wire is_jump_and_link_taken;
 
 assign is_jump =   (opcode == `OP_RTYPE && (func == `FUNC_JR || func == `FUNC_JALR)) ||
 					opcode == `OP_JUMP || opcode == `OP_JAL || opcode == `OP_BEQ || opcode == `OP_BNE ||
 					opcode == `OP_BRANCH || opcode == `OP_BLEZ || opcode == `OP_BGTZ;
 assign next_is_delay_slot = is_jump & (is_taken | ~is_cond);
 assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcode == `OP_JAL;  // Some cases missing
+assign is_jump_and_link_taken = is_jump_and_link & (is_taken | ~is_cond);
 
 
 // Operand read
@@ -271,6 +280,15 @@ assign is_taken = (opcode == `OP_BEQ & z) | (opcode == `OP_BNE & ~z) |
 assign is_cond  = opcode == `OP_BEQ | opcode == `OP_BNE | opcode == `OP_BLEZ |
                   opcode == `OP_BGTZ;
 
+always @ (*) begin
+    if(opcode == `OP_RTYPE && (func == `FUNC_JR || func == `FUNC_JALR)) 
+        target_jump <= opA; 
+    else if(opcode == `OP_JAL || opcode == `OP_JUMP) 
+        target_jump <= {current_pc[31:28], jmp_off, 2'b00}; 
+    else if(opcode[5:3] == 3'b000 && opcode != `OP_RTYPE)
+        target_jump <= current_pc+4+imm;
+end;
+
 // Memory load or store
 wire is_ld;
 assign is_ld = (opcode[5:3] == 3'b100); 
@@ -281,75 +299,75 @@ always @ (*) begin
     `OP_LB: begin
         case(res[1:0])
         2'b00: begin
-            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][7:0]};
+            ld <= {{24{memory[res[19:2]][7]}}, memory[res[19:2]][7:0]};
         end
         2'b01: begin
-            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][15:8]};
+            ld <= {{24{memory[res[19:2]][7]}}, memory[res[19:2]][15:8]};
         end
         2'b10: begin
-            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][23:16]};
+            ld <= {{24{memory[res[19:2]][7]}}, memory[res[19:2]][23:16]};
         end
         2'b11: begin
-            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][31:24]};
+            ld <= {{24{memory[res[19:2]][7]}}, memory[res[19:2]][31:24]};
         end
         endcase;
     end
     `OP_LBU: begin
-        ld <= {24'b0, memory[res[20:2]][7:0]};
+        ld <= {24'b0, memory[res[19:2]][7:0]};
     end
     `OP_LH: begin
-        ld <= ({{16{memory[res[20:2]][15]}},
-        memory[res[20:2]][15:0]} & {32{~res[1]}}) | ({{16{memory[res[20:2]][15]}},
-        memory[res[20:2]][15:0]} & {32{res[1]}}); 
+        ld <= ({{16{memory[res[19:2]][15]}},
+        memory[res[19:2]][15:0]} & {32{~res[1]}}) | ({{16{memory[res[19:2]][15]}},
+        memory[res[19:2]][15:0]} & {32{res[1]}}); 
     end
     `OP_LHU: begin
-        ld <= ({16'b0, memory[res[20:2]][15:0]} & {32{~res[1]}}) | 
-        ({16'b0, memory[res[20:2]][15:0]} & {32{res[1]}}); 
+        ld <= ({16'b0, memory[res[19:2]][15:0]} & {32{~res[1]}}) | 
+        ({16'b0, memory[res[19:2]][15:0]} & {32{res[1]}}); 
     end
     `OP_LWL: begin
-        ld <= {opA[15:0], memory[res[20:2]][31:16]};
+        ld <= {opA[15:0], memory[res[19:2]][31:16]};
      end
      `OP_LWR: begin
-        ld <= {opA[15:0], memory[res[20:2]][15:0]};
+        ld <= {opA[15:0], memory[res[19:2]][15:0]};
      end
      `OP_LW: begin
-        ld <= memory[res[20:2]];
+        ld <= memory[res[19:2]];
      end
      `OP_SB: begin
         case(res[1:0])
         2'b00: begin
-            memory[res[20:2]][7:0] <= reg_bank[rb][7:0]; //FIXME: store rb sw else
+            memory[res[19:2]][7:0] <= reg_bank[rb][7:0]; //FIXME: store rb sw else
         end
         2'b01: begin
-            memory[res[20:2]][15:8] <= reg_bank[rb][7:0]; //FIXME
+            memory[res[19:2]][15:8] <= reg_bank[rb][7:0]; //FIXME
         end
         2'b10: begin
-            memory[res[20:2]][23:16] <= reg_bank[rb][7:0]; //FIXME
+            memory[res[19:2]][23:16] <= reg_bank[rb][7:0]; //FIXME
         end
         2'b11: begin
-            memory[res[20:2]][31:24] <= reg_bank[rb][7:0]; //FIXME
+            memory[res[19:2]][31:24] <= reg_bank[rb][7:0]; //FIXME
         end
         endcase;
     end
     `OP_SH: begin
         case(res[1])
         1'b0: begin
-            memory[res[20:2]][15:0] <= reg_bank[rb][15:0];
+            memory[res[19:2]][15:0] <= reg_bank[rb][15:0];
         end
         1'b1: begin
-            memory[res[20:2]][31:16] <= reg_bank[rb][15:0];
+            memory[res[19:2]][31:16] <= reg_bank[rb][15:0];
         end
         endcase;
     end
     `OP_SW: begin
-        memory[res[20:2]] <= reg_bank[rb];
+        memory[res[19:2]] <= reg_bank[rb];
     end
     endcase;
 end;
 
 // Writeback
 wire [31:0] wb_bus;
-assign wb_bus = is_ld? ld : res;
+assign wb_bus = is_ld? ld : is_jump_and_link_taken? current_pc+8 : res;
 always @ (posedge clk) begin
 	if (reset) begin
 		for (int i = 1; i < 32; i++) begin
