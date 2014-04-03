@@ -58,7 +58,8 @@ assign rs       = encoded_inst [25:21];
 assign rt       = encoded_inst [20:16];
 assign rd       = encoded_inst [15:11];
 assign imm      = encoded_inst [15: 0];
-assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100);
+assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100 ||
+opcode[5:3] == 3'b101);
 
 reg [4:0] ra, rb, rc;
 reg [3:0] uop;
@@ -118,7 +119,7 @@ always @ (*) begin
 	    rb <= 5'b0;
 	    rc <= 5'h1f;
 	end
-    `OP_SW, `OP_SB: begin
+    `OP_SW, `OP_SB, `OP_SH: begin
 	    ra <= rs;
 	    rb <= rt;
 	    rc <= 5'b0;
@@ -206,7 +207,7 @@ assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcod
 reg [31:0] reg_bank [31:1];
 wire [31:0] opA, opB;
 assign opA = (ra != 5'b0) ? reg_bank[ra] : 32'b0;
-assign opB = (rb != 5'b0) ? reg_bank[rb] : (use_imm)? {{16{imm[15]}}, imm[15:0]} : 32'b0;
+assign opB = (use_imm)? {{16{imm[15]}}, imm[15:0]} : reg_bank[rb];
 
 // Execution
 wire z, lessz, eq;
@@ -271,26 +272,76 @@ assign is_cond  = opcode == `OP_BEQ | opcode == `OP_BNE | opcode == `OP_BLEZ |
 wire is_ld;
 assign is_ld = (opcode[5:3] == 3'b100); 
 reg [31:0] ld;
+
 always @ (*) begin
     case(opcode)
     `OP_LB: begin
-        ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][7:0]};
+        case(res[1:0])
+        2'b00: begin
+            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][7:0]};
+        end
+        2'b01: begin
+            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][15:8]};
+        end
+        2'b10: begin
+            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][23:16]};
+        end
+        2'b11: begin
+            ld <= {{24{memory[res[20:2]][7]}}, memory[res[20:2]][31:24]};
+        end
+        endcase;
     end
     `OP_LBU: begin
         ld <= {24'b0, memory[res[20:2]][7:0]};
     end
     `OP_LH: begin
-        ld <= {{16{memory[res[20:2]][15]}}, memory[res[20:2]][15:0]};
+        ld <= ({{16{memory[res[20:2]][15]}},
+        memory[res[20:2]][15:0]} & {32{~res[1]}}) | ({{16{memory[res[20:2]][15]}},
+        memory[res[20:2]][15:0]} & {32{res[1]}}); 
     end
     `OP_LHU: begin
-        ld <= {16'b0, memory[res[20:2]][15:0]};
+        ld <= ({16'b0, memory[res[20:2]][15:0]} & {32{~res[1]}}) | 
+        ({16'b0, memory[res[20:2]][15:0]} & {32{res[1]}}); 
     end
     `OP_LWL: begin
-        ld <= {opA[15:0], memory[res[20:2]][31:16];
+        ld <= {opA[15:0], memory[res[20:2]][31:16]};
      end
      `OP_LWR: begin
-        ld <= {opA[15:0], memory[res[20:2]][15:0];
+        ld <= {opA[15:0], memory[res[20:2]][15:0]};
      end
+     `OP_LW: begin
+        ld <= memory[res[20:2]];
+     end
+     `OP_SB: begin
+        case(res[1:0])
+        2'b00: begin
+            memory[res[20:2]][7:0] <= reg_bank[rb][7:0]; //FIXME: store rb sw else
+        end
+        2'b01: begin
+            memory[res[20:2]][15:8] <= reg_bank[rb][7:0]; //FIXME
+        end
+        2'b10: begin
+            memory[res[20:2]][23:16] <= reg_bank[rb][7:0]; //FIXME
+        end
+        2'b11: begin
+            memory[res[20:2]][31:24] <= reg_bank[rb][7:0]; //FIXME
+        end
+        endcase;
+    end
+    `OP_SH: begin
+        case(res[1])
+        1'b0: begin
+            memory[res[20:2]][15:0] <= reg_bank[rb][15:0];
+        end
+        1'b1: begin
+            memory[res[20:2]][31:16] <= reg_bank[rb][15:0];
+        end
+        endcase;
+    end
+    `OP_SW: begin
+        memory[res[20:2]] <= reg_bank[rb];
+    end
+    endcase;
 end;
 
 // Writeback
