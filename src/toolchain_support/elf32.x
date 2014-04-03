@@ -7,7 +7,7 @@ SEARCH_DIR("/nfs/upc/disks/bssad_knl_disk002/dfguille/openmips/openmips/toolchai
 SECTIONS
 {
   /* Read-only sections, merged into text segment: */
-  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x0400000)); . = SEGMENT_START("text-segment", 0x0400000);
+  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x0100000)); . = SEGMENT_START("text-segment", 0x0100000);
   .interp         : { *(.interp) }
   .reginfo        : { *(.reginfo) }
   .note.gnu.build-id : { *(.note.gnu.build-id) }

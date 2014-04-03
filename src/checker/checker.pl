@@ -31,7 +31,7 @@ my $base=`basename $elf_executable | tr -d '\n'`;
 my $checker_outfile = "$out_path/checker-$base.log";
 my $sim_outfile     = "$out_path/simulator-$base.log";
 
-my $run_cmdline = $GDB_RUN_BINARY . " --memory-region 0x400000,268435456 --trace-reg=on --trace-insn=on --trace-file $checker_outfile $elf_executable ";
+my $run_cmdline = $GDB_RUN_BINARY . " --memory-region 0x100000,0x100000 --trace-reg=on --trace-insn=on --trace-file $checker_outfile $elf_executable ";
 my $sim_cmdline = "( cd $simulation_path; $SIM_RUN_BINARY -c -do 'run 100ns;quit' $unit_to_simulate > $sim_outfile )";
 
 print "$run_cmdline\n";
@@ -42,5 +42,19 @@ system("bash -c \"$sim_cmdline\"");
 # Now proceed to parse the output logs and compare. Generate a report :)
 #
 
-# TODO
+# Example of LIP + reg output
+# insn:     mips.igen:2361 0x400000 lui r29, 0x1000          - LUI
+# reg:      mips.igen:2361 0x400000 lui r29, 0x1000          -                                  :: 0x0000001d 0x10000000
+
+open (FILE1, $checker_outfile);
+while (<FILE1>){
+    chomp;
+    if ($_ =~ /^insn:[\s]+[^\s]+[\s]+([0-9x]+)/) {
+        #print $_;
+    }
+}
+close(FILE1);
+
+
+
 

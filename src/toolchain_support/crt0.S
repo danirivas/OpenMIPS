@@ -8,7 +8,7 @@
 _start:
     .set noreorder
 	# Setup stackpointer
-	lui $sp, 0x1000
+	la $sp, 0x200000
     # Setup GP
     la $gp, _gp
 

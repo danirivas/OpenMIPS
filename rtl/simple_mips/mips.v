@@ -16,6 +16,9 @@ module simple_mips(clk, reset);
 
 input clk, reset;
 reg [31:0] memory[256*1024-1:0];
+initial begin 
+$readmemb("/nfs/upc/disks/bssad_knl_disk002/dfguille/openmips/openmips/src/regtests/hello_world/hello_world.img", memory);
+end
 
 // Instruction fetch
 reg [31:0] current_pc;
@@ -30,7 +33,7 @@ assign next_pc = is_delay_slot ? target_jump : next_pc_seq;
 
 always @ (posedge clk) begin
 	if (reset) begin
-		current_pc <= 32'h00400000;  // This is the reset LIP
+		current_pc <= 32'h00000000;  // This is the reset LIP
 		is_delay_slot <= 0;
 	end
 	else begin
@@ -62,7 +65,7 @@ assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100 ||
 opcode[5:3] == 3'b101);
 
 reg [4:0] ra, rb, rc;
-reg [3:0] uop;
+reg [4:0] uop;
 always @ (*) begin
 	case (opcode)
 	`OP_RTYPE: begin
@@ -368,7 +371,7 @@ always @ (posedge clk) begin
         $display("Reset going on...");
     end
     else begin
-        $display(cycle_count, " ", rc, " ", wb_bus);
+        $display(cycle_count, " ", rc, " %h ", wb_bus, " %h ", res, " ", uop, " ", is_ld, " PC: %h " , current_pc, " " , encoded_inst);
         cycle_count <= cycle_count + 1;
     end
 end
