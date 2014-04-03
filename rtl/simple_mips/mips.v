@@ -33,7 +33,7 @@ assign next_pc = is_delay_slot ? target_jump : next_pc_seq;
 
 always @ (posedge clk) begin
 	if (reset) begin
-		current_pc <= 32'h00000000;  // This is the reset LIP
+		current_pc <= 32'h00100000;  // This is the reset LIP
 		is_delay_slot <= 0;
 	end
 	else begin
@@ -68,7 +68,7 @@ opcode[5:3] == 3'b101);
 
 reg [4:0] ra, rb, rc;
 reg [4:0] uop;
-always @ (*) begin
+always_comb begin
 	case (opcode)
 	`OP_RTYPE: begin
 		case (func)
@@ -134,6 +134,11 @@ always @ (*) begin
         rb <= rt;
         rc <= 5'b0;
     end
+    `OP_BRANCH: begin
+        ra <= rs;
+        rb <= 5'b0;
+        rc <= (rt[4:3] == 2'b10)? 5'h1f : 5'b0;
+    end
     default: begin
         ra <= 5'b0;
         rb <= 5'b0;
@@ -177,7 +182,7 @@ always @ (*) begin
 		endcase;
     end
     `OP_ADDI, `OP_ADDIU, `OP_LW, `OP_LB, `OP_LBU, `OP_LH, `OP_LHU, `OP_LWL,
-    `OP_LWR, `OP_SW, `OP_SB: begin
+    `OP_LWR, `OP_SW, `OP_SB, `OP_BEQ, `OP_BNE, `OP_BLEZ, `OP_BGTZ, `OP_BRANCH : begin
         uop <= `UOP_ADD;
     end
     `OP_SLTI, `OP_SLTIU: begin 
@@ -211,7 +216,8 @@ assign is_jump =   (opcode == `OP_RTYPE && (func == `FUNC_JR || func == `FUNC_JA
 					opcode == `OP_JUMP || opcode == `OP_JAL || opcode == `OP_BEQ || opcode == `OP_BNE ||
 					opcode == `OP_BRANCH || opcode == `OP_BLEZ || opcode == `OP_BGTZ;
 assign next_is_delay_slot = is_jump & (is_taken | ~is_cond);
-assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || opcode == `OP_JAL;  // Some cases missing
+assign is_jump_and_link =   (opcode == `OP_RTYPE && func == `FUNC_JALR) || 
+                            opcode == `OP_JAL || (opcode == `OP_BRANCH && rt[4:3]);  // Some cases missing
 assign is_jump_and_link_taken = is_jump_and_link & (is_taken | ~is_cond);
 
 
@@ -389,7 +395,7 @@ always @ (posedge clk) begin
         $display("Reset going on...");
     end
     else begin
-        $display(cycle_count, " ", rc, " %h ", wb_bus, " %h ", res, " ", uop, " ", is_ld, " PC: %h " , current_pc, " " , encoded_inst);
+        $display(cycle_count, " ", rc, " %h ", wb_bus, " %h ", res, " ", uop, " ", is_ld, " PC: %h " , current_pc, " next PC: %h ", next_pc, " is DS: ", is_delay_slot, " " , encoded_inst);
         cycle_count <= cycle_count + 1;
     end
 end
