@@ -30,6 +30,7 @@ my $base=`basename $elf_executable | tr -d '\n'`;
 
 my $checker_outfile = "$out_path/checker-$base.log";
 my $sim_outfile     = "$out_path/simulator-$base.log";
+my $rpt_outfile     = "$out_path/report-$base.log";
 
 my $run_cmdline = $GDB_RUN_BINARY . " --memory-region 0x100000,0x100000 --trace-reg=on --trace-insn=on --trace-file $checker_outfile $elf_executable ";
 my $sim_cmdline = "( cd $simulation_path; $SIM_RUN_BINARY -c -do 'run 100ns;quit' $unit_to_simulate > $sim_outfile )";
@@ -46,15 +47,33 @@ system("bash -c \"$sim_cmdline\"");
 # insn:     mips.igen:2361 0x400000 lui r29, 0x1000          - LUI
 # reg:      mips.igen:2361 0x400000 lui r29, 0x1000          -                                  :: 0x0000001d 0x10000000
 
+my @lips_checker;
 open (FILE1, $checker_outfile);
 while (<FILE1>){
     chomp;
-    if ($_ =~ /^insn:[\s]+[^\s]+[\s]+([0-9x]+)/) {
-        #print $_;
+    if ($_ =~ /^insn:[\s]+[^\s]+[\s]+0x([0-9a-f]+)/) {
+        push (@lips_checker, $1);
     }
 }
 close(FILE1);
 
+my @lips_sim;
+open (FILE1, $sim_outfile);
+while (<FILE1>){
+    chomp;
+    if ($_ =~ /PC:[\s]*([0-9a-fxz]+)/) {
+        push (@lips_sim, $1);
+    }
+}
+close(FILE1);
 
+open (FILE2, ">>$rpt_outfile"); 
+my $msize = @lips_sim;
+if (0+$lips_sim > 0+$lips_checker) { $msize = @lips_checker; }
+
+for ($i = 0; $i < $msize; $i++) {
+    print FILE2 $lips_sim[$i] . " " . $lips_checker[$i] ."\n";
+}
+close(FILE2);
 
 
