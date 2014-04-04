@@ -284,7 +284,7 @@ assign is_taken = (opcode == `OP_BEQ & z) | (opcode == `OP_BNE & ~z) |
                   (opcode == `OP_BLEZ & (lessz | z)) | (opcode == `OP_BGTZ &
                   (~lessz & ~z));
 assign is_cond  = opcode == `OP_BEQ | opcode == `OP_BNE | opcode == `OP_BLEZ |
-                  opcode == `OP_BGTZ;
+                  opcode == `OP_BGTZ | opcode == `OP_BRANCH;
 
 always @ (*) begin
     if(opcode == `OP_RTYPE && (func == `FUNC_JR || func == `FUNC_JALR)) 
@@ -373,6 +373,8 @@ end;
 
 // Writeback
 wire [31:0] wb_bus;
+wire wr_en;
+assign wr_en = (is_jump & is_cond & ~is_taken)? 1'b0 : 1'b1;
 assign wb_bus = is_ld? ld : is_jump_and_link_taken? current_pc+8 : res;
 always @ (posedge clk) begin
 	if (reset) begin
@@ -381,7 +383,7 @@ always @ (posedge clk) begin
 		end
 	end
 	else begin
-		if (rc != 5'b0)
+		if (rc != 5'b0 & wr_en)
 			reg_bank[rc] = wb_bus;
 	end
 end
@@ -395,7 +397,7 @@ always @ (posedge clk) begin
         $display("Reset going on...");
     end
     else begin
-        $display(cycle_count, " ", rc, " %h ", wb_bus, " %h ", res, " ", uop, " ", is_ld, " PC: %h " , current_pc, " next PC: %h ", next_pc, " is DS: ", is_delay_slot, " " , encoded_inst);
+        $display(cycle_count, " rc: %h ", rc, " opA: %h ", opA, " opB: %h ", opB, " imm: %h ", imm, " wb_bus: %h ", wb_bus, " %h ", res, " ", uop, " %b ", opcode, "  ", is_ld, " PC: %h " , current_pc, " next PC: %h ", next_pc, " target: %h: ", target_jump, " is DS: ", is_delay_slot, " is JMP " , is_jump, " is cond ", is_cond, " is taken ", is_taken, " ", encoded_inst);
         cycle_count <= cycle_count + 1;
     end
 end
