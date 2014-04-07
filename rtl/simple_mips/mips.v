@@ -1,17 +1,6 @@
 
 `include "constants.vh"
 
-
-module simple_mips_toplevel();
-    reg clk, reset;
-    initial clk = 0;
-    initial reset = 1;
-    always #(0.5ns) clk = ~clk;
-    always #(10ns) reset = 0;
-
-    simple_mips cpu(clk, reset);
-endmodule
-
 module simple_mips(clk, reset);
 
 input clk, reset;
@@ -389,6 +378,8 @@ always @ (posedge clk) begin
 end
 
 
+`include "strings.vh"
+
 // Output for checker
 reg [63:0] cycle_count;
 always @ (posedge clk) begin
@@ -397,7 +388,24 @@ always @ (posedge clk) begin
         $display("Reset going on...");
     end
     else begin
-        $display(cycle_count, " rc: %h ", rc, " opA: %h ", opA, " opB: %h ", opB, " imm: %h ", imm, " wb_bus: %h ", wb_bus, " %h ", res, " ", uop, " %b ", opcode, "  ", is_ld, " PC: %h " , current_pc, " next PC: %h ", next_pc, " target: %h: ", target_jump, " is DS: ", is_delay_slot, " is JMP " , is_jump, " is cond ", is_cond, " is taken ", is_taken, " ", encoded_inst);
+        if ((cycle_count % 10) == 0) 
+        begin
+            $display("-------------------------------------------------------------");
+            $display("opcode \t| S \t| T \t| D \t| SHF \t| IMM \t\t| TGT");
+            $display("-------------------------------------------------------------");
+        end
+
+        if (encoded_inst[31:26] == `OP_RTYPE) begin
+            $display("%s   \t| %d \t| %d \t| %d \t| %d \t| xxxxx \t| 0xx", function2string[encoded_inst[31:26]], encoded_inst[25:21], encoded_inst[20:16], encoded_inst[15:11], encoded_inst[10:6]);
+        end
+        else if ((encoded_inst[31:26] == `OP_JUMP) || (encoded_inst[31:26] == `OP_JAL)) begin
+            $display("%s   \t| XX \t| XX \t| xx \t| xx \t| xxxxx \t| 0x%h", opcode2string[encoded_inst[31:26]], encoded_inst[25:0]);
+        end
+        else
+        begin
+            $display("%s   \t| %d \t| %d \t| xx \t| xx \t| %d \t| 0xx", opcode2string[encoded_inst[31:26]], encoded_inst[25:21], encoded_inst[20:16], encoded_inst[15:0]);
+        end
+
         cycle_count <= cycle_count + 1;
     end
 end

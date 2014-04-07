@@ -1,0 +1,64 @@
+string opcode2string [6'b11_1111];
+initial begin
+   opcode2string[6'b000000] = "SPECIAL";
+   opcode2string[6'b000001] = "REGIMM";
+   opcode2string[6'b000010] = "JUMP";   
+   opcode2string[6'b000011] = "JAL";
+   opcode2string[6'b010000] = "CP0";
+   opcode2string[6'b000100] = "BEQ";
+   opcode2string[6'b000101] = "BNE";
+   opcode2string[6'b000110] = "BLEZ";
+   opcode2string[6'b000111] = "BGTZ";
+   opcode2string[6'b001000] = "ADDI";
+   opcode2string[6'b001001] = "ADDIU";
+   opcode2string[6'b001010] = "SLTI";
+   opcode2string[6'b001011] = "SLTIU";
+   opcode2string[6'b001100] = "ANDI";
+   opcode2string[6'b001101] = "ORI";
+   opcode2string[6'b001110] = "XORI";
+   opcode2string[6'b001111] = "LUI";
+   opcode2string[6'b100000] = "LB";
+   opcode2string[6'b100001] = "LH";
+   opcode2string[6'b100011] = "LW";
+   opcode2string[6'b100100] = "LBU";
+   opcode2string[6'b100101] = "LHU";
+   opcode2string[6'b100010] = "LWL";
+   opcode2string[6'b100110] = "LWR";
+   opcode2string[6'b101000] = "SB";
+   opcode2string[6'b101001] = "SH";
+   opcode2string[6'b101011] = "SW";
+   opcode2string[6'b110001] = "LWC";
+   opcode2string[6'b111001] = "SWC";
+end
+
+string function2string [6'b11_1111];
+initial begin
+   function2string[6'b000000]="SLL";
+   function2string[6'b000010]="SRL";
+   function2string[6'b000011]="SRA";
+   function2string[6'b000100]="SLLV";
+   function2string[6'b000110]="SRLV";
+   function2string[6'b000111]="SRAV";
+   function2string[6'b001000]="JR";
+   function2string[6'b001001]="JALR";
+   function2string[6'b001100]="SYS";
+   function2string[6'b001101]="BREAK";
+   function2string[6'b010000]="MFHI";
+   function2string[6'b010001]="MTHI";
+   function2string[6'b010010]="MFLO";
+   function2string[6'b010011]="MTLO";
+   function2string[6'b011000]="MUL";
+   function2string[6'b011001]="MULU";
+   function2string[6'b011010]="DIV";
+   function2string[6'b011011]="DIVU";
+   function2string[6'b100000]="ADD";
+   function2string[6'b100001]="ADDU";
+   function2string[6'b100010]="SUB";
+   function2string[6'b100011]="SUBU";
+   function2string[6'b100100]="AND";
+   function2string[6'b100101]="OR";
+   function2string[6'b100110]="XOR";
+   function2string[6'b100111]="NOR";
+   function2string[6'b101010]="SLT";
+   function2string[6'b101011]="SLTU";
+end

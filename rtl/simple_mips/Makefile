@@ -11,7 +11,7 @@ all:
 	(cd $(RTL_BUILD); $(ALTERA_BIN)/vlib work)
 	
 	# Compile
-	$(VC) $(VFLAGS) mips.v
+	$(VC) $(VFLAGS) toplevel.v
 
 regression:
 	# Simulate 
