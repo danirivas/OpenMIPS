@@ -51,7 +51,7 @@ wire [5:0]  opcode;
 wire [4:0]  rs, rt, rd;
 wire [4:0]  sa;
 wire [5:0]  func;
-wire [15:0] imm;
+wire [31:0] imm;
 wire [25:0] jmp_off; 
 wire use_imm;
 
@@ -61,7 +61,7 @@ assign func     = encoded_inst [5 : 0];
 assign rs       = encoded_inst [25:21];
 assign rt       = encoded_inst [20:16];
 assign rd       = encoded_inst [15:11];
-assign imm      = encoded_inst [15: 0]; //FIXME: extend imm to 32b
+assign imm      = {{16{encoded_inst[15]}}, encoded_inst [15: 0]};
 assign jmp_off  = encoded_inst [25:0];
 assign use_imm  = (opcode[5:3] == 3'b001 || opcode[5:3] == 3'b100 ||
 opcode[5:3] == 3'b101);
@@ -182,10 +182,10 @@ always_comb begin
 		endcase;
     end
     `OP_ADDI, `OP_ADDIU, `OP_LW, `OP_LB, `OP_LBU, `OP_LH, `OP_LHU, `OP_LWL,
-    `OP_LWR, `OP_SW, `OP_SB, `OP_BEQ, `OP_BNE, `OP_BLEZ, `OP_BGTZ, `OP_BRANCH : begin
+    `OP_LWR, `OP_SW, `OP_SB : begin
         uop <= `UOP_ADD;
     end
-    `OP_SLTI, `OP_SLTIU: begin 
+    `OP_SLTI, `OP_SLTIU, `OP_BEQ, `OP_BNE, `OP_BLEZ, `OP_BGTZ, `OP_BRANCH: begin 
         uop <= `UOP_SUB;
     end
     `OP_ANDI: begin
@@ -225,7 +225,7 @@ assign is_jump_and_link_taken = is_jump_and_link & (is_taken | ~is_cond);
 reg [31:0] reg_bank [31:1];
 wire [31:0] opA, opB;
 assign opA = (ra != 5'b0) ? reg_bank[ra] : 32'b0;
-assign opB = (use_imm)? {{16{imm[15]}}, imm[15:0]} : reg_bank[rb];
+assign opB = (use_imm)? imm : (rb != 5'b0)? reg_bank[rb] : 32'b0;
 
 // Execution
 wire z, lessz, eq;
@@ -292,7 +292,7 @@ always @ (*) begin
     else if(opcode == `OP_JAL || opcode == `OP_JUMP) 
         target_jump <= {current_pc[31:28], jmp_off, 2'b00}; 
     else if(opcode[5:3] == 3'b000 && opcode != `OP_RTYPE)
-        target_jump <= current_pc+4+imm;
+        target_jump <= current_pc+4+{imm[29:0], 2'b0};
 end;
 
 // Memory load or store
