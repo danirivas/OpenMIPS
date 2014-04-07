@@ -33,7 +33,7 @@ my $sim_outfile     = "$out_path/simulator-$base.log";
 my $rpt_outfile     = "$out_path/report-$base.log";
 
 my $run_cmdline = $GDB_RUN_BINARY . " --memory-region 0x100000,0x100000 --trace-reg=on --trace-insn=on --trace-file $checker_outfile $elf_executable ";
-my $sim_cmdline = "( cd $simulation_path; $SIM_RUN_BINARY -c -do 'run 100ns;quit' $unit_to_simulate > $sim_outfile )";
+my $sim_cmdline = "( cd $simulation_path; $SIM_RUN_BINARY -c -do 'run 200ns;quit' $unit_to_simulate > $sim_outfile )";
 
 print "$run_cmdline\n";
 system("bash -c \"$run_cmdline\"");

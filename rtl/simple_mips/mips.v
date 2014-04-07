@@ -308,7 +308,20 @@ always @ (*) begin
         endcase;
     end
     `OP_LBU: begin
-        ld <= {24'b0, memory[res[19:2]][7:0]};
+        case(res[1:0])
+        2'b00: begin
+            ld <= {24'b0, memory[res[19:2]][7:0]};
+        end
+        2'b01: begin
+            ld <= {24'b0, memory[res[19:2]][15:8]};
+        end
+        2'b10: begin
+            ld <= {24'b0, memory[res[19:2]][23:16]};
+        end
+        2'b11: begin
+            ld <= {24'b0, memory[res[19:2]][31:24]};
+        end
+        endcase;
     end
     `OP_LH: begin
         ld <= ({{16{memory[res[19:2]][15]}},
