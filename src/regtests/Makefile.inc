@@ -13,8 +13,10 @@ PREFIX=mips-elf-
 
 # Complete path for the tools
 CC=$(EPATH)/$(PREFIX)gcc
+LD=$(EPATH)/$(PREFIX)ld
 CPP=$(EPATH)/$(PREFIX)g++
 OBJCOPY=$(EPATH)/$(PREFIX)objcopy
+OBJDUMP=$(EPATH)/$(PREFIX)objdump
 
 # CRT0 stuff
 CRT0O=${MODEL_ROOT_BASE}/src/toolchain_support/crt0.o
@@ -29,8 +31,8 @@ SRCS_PATH=${MODEL_ROOT_BASE}/src/
 BUILDS_PATH=${MODEL_ROOT_BASE}/build/
 
 all:	$(CRT0O) 
-	$(CC) -o $(TARGET).exe $(TARGET).c $(CFLAGS) $(LDFLAGS)
-	$(OBJCOPY) -O binary -j ".start" -j ".init" -j ".fini" -j ".text" -j ".ctors" -j ".dtors" -j ".data" -j ".bss"  $(TARGET).exe $(TARGET).bin
+	$(CC) -o $(TARGET).exe -Wl,-Map=$(TARGET).map $(TARGET).c $(CFLAGS) $(LDFLAGS)
+	$(OBJCOPY) -O binary -j ".start" -j ".init" -j ".text" -j ".fini" -j ".ctors" -j ".dtors" -j ".data" -j ".sdata" -j ".bss"  $(TARGET).exe $(TARGET).bin
 	${MODEL_ROOT_BASE}/src/toolchain_support/memgen.sh $(TARGET).bin $(TARGET).img 
 
 regression:
