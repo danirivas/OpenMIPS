@@ -12,6 +12,14 @@ _start:
     # Setup GP
     la $gp, _gp
 
+    # Clear BSS section
+    la $t0, __bss_start
+    la $t1, _end
+    _bss_clear_loop:
+      sw $zero, 0($t0)
+      bne $t0,$t1,_bss_clear_loop
+      addiu $t0, $t0, 4 
+
     # Call initialization
     # This clears bss, calls C++ constructors...
     jal _init
